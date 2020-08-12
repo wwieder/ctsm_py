@@ -61,7 +61,43 @@ def dim_cnt_check(ds, varname, dim_cnt):
         msg_full = 'unexpected dim_cnt=%d, varname=%s' % (len(ds[varname].dims), varname)
         raise ValueError(msg_full)
 
-def time_set_mid(ds, time_name):
+def time_set_mid(ds, time_name, deep=False):
+    """
+    Return copy of ds with values of ds[time_name] replaced with midpoints of
+    ds[time_name].attrs['bounds'], if bounds attribute exists.
+    Except for time_name, the returned Dataset is a copy of ds2.
+    The copy is deep or not depending on the argument deep.
+    """
+
+    ds_out = ds.copy(deep)
+
+    if "bounds" not in ds[time_name].attrs:
+        return ds_out
+
+    tb_name = ds[time_name].attrs["bounds"]
+    tb = ds[tb_name]
+    bounds_dim = next(dim for dim in tb.dims if dim != time_name)
+
+    # Use da = da.copy(data=...), in order to preserve attributes and encoding.
+
+    # If tb is an array of datetime objects then encode time before averaging.
+    # Do this because computing the mean on datetime objects with xarray fails
+    # if the time span is 293 or more years.
+    #     https://github.com/klindsay28/CESM2_coup_carb_cycle_JAMES/issues/7
+    if tb.dtype == np.dtype("O"):
+        units = "days since 0001-01-01"
+        calendar = "noleap"
+        tb_vals = cftime.date2num(ds[tb_name].values, units=units, calendar=calendar)
+        tb_mid_decode = cftime.num2date(
+            tb_vals.mean(axis=1), units=units, calendar=calendar
+        )
+        ds_out[time_name] = ds[time_name].copy(data=tb_mid_decode)
+    else:
+        ds_out[time_name] = ds[time_name].copy(data=tb.mean(bounds_dim))
+
+    return ds_out
+
+'''def time_set_mid(ds, time_name):
     """
     set ds[time_name] to midpoint of ds[time_name].attrs['bounds'], if bounds attribute exists
     type of ds[time_name] is not changed
@@ -89,12 +125,14 @@ def time_set_mid(ds, time_name):
 
     # set ds[time_name] to tb_mid
     if ds[time_name].dtype == np.dtype('O'):
-        ds[time_name].values = cftime.num2date(tb_mid, units=units, calendar=calendar)
+        # WW changed for xarray 16
+        #ds[time_name].values = cftime.num2date(tb_mid, units=units, calendar=calendar) 
+        ds.assign_coords({time_name: tb_mid})
     else:
-        ds[time_name].values = tb_mid
-
+        #ds[time_name].values = tb_mid
+        ds.assign_coords({time_name: tb_mid})
     return ds
-
+'''
 def time_year_plus_frac(ds, time_name):
     """return time variable, as year plus fraction of year"""
 
