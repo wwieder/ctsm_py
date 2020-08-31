@@ -3,6 +3,8 @@ CTSM_PY
 
 A place to put sample workflows and tools that use ctsm model output
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4009510.svg)](https://doi.org/10.5281/zenodo.4009510)
+
 ## Installing
 
 First clone this repository:
